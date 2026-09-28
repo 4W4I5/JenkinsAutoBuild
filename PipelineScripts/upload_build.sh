@@ -2,7 +2,7 @@
 set -eux
 
 if [ "${ENABLE_SYMSAN:-false}" = "true" ]; then
-    BUILD_MODE="symsan_aflpp_llvm22"
+    BUILD_MODE="symsan_aflpp_llvm18"
 else
     BUILD_MODE="${TARGET_ENGINE}_${TARGET_SANITIZER}"
 fi

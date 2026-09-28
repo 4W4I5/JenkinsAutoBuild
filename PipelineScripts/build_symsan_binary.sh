@@ -27,8 +27,8 @@ env = [
     "HELPER=True",
     "CC=/opt/symsan/bin/ko-clang",
     "CXX=/opt/symsan/bin/ko-clang++",
-    "KO_CC=clang-22",
-    "KO_CXX=clang++-22",
+    "KO_CC=clang-18",
+    "KO_CXX=clang++-18",
     "KO_USE_FASTGEN=1",
     "AFL_LLVM_CMPLOG=0",
 ]

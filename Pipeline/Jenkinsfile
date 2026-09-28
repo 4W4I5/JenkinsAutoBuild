@@ -38,7 +38,7 @@ pipeline {
         SYMSAN_REPO = 'https://github.com/R-Fuzz/symsan.git'
         AFLPP_REPO = 'https://github.com/AFLplusplus/AFLplusplus.git'
 
-        LLVM_VERSION = '22'
+        LLVM_VERSION = '18'
         REMOTE_HOST = '192.168.18.56'
         REMOTE_USER = 'ubuntu24'
         REMOTE_PASS = 'admin'
@@ -52,7 +52,7 @@ pipeline {
             steps {
                 script {
                     if (params.ENABLE_SYMSAN) {
-                        currentBuild.displayName = "${params.TARGET_PROJECT}_symsan_aflpp_llvm22"
+                        currentBuild.displayName = "${params.TARGET_PROJECT}_symsan_aflpp_llvm18"
                     } else {
                         currentBuild.displayName = "${params.TARGET_PROJECT}_${params.TARGET_ENGINE}_${params.TARGET_SANITIZER}"
                     }
@@ -72,7 +72,7 @@ pipeline {
             }
         }
 
-        stage('Prepare SymSan + AFL++ LLVM 22 Image') {
+        stage('Prepare SymSan + AFL++ LLVM 18 Image') {
             when {
                 expression {
                     return params.ENABLE_SYMSAN

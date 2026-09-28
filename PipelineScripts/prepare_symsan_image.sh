@@ -39,6 +39,12 @@ RUN apt-get update && \
         python3-dev \
         python3-pip \
         zlib1g-dev \
+        llvm-18 \
+        clang-18 \
+        libclang-18-dev \
+        libc++-18-dev \
+        libc++abi-18-dev \
+        libunwind-18-dev \
         libz3-dev \
         libgoogle-perftools-dev \
         gdb \
@@ -52,28 +58,12 @@ RUN apt-get update && \
 
 #
 # ----------------------------------------------------------------------
-# LLVM 22
+# LLVM 18
 # ----------------------------------------------------------------------
 #
-ARG LLVM_RELEASE=22.1.0
-
-RUN mkdir -p /opt/llvm-22 && \
-    curl -fsSL \
-        "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_RELEASE}/LLVM-${LLVM_RELEASE}-Linux-X64.tar.xz" \
-        -o /tmp/llvm.tar.xz && \
-    tar -xJf /tmp/llvm.tar.xz \
-        --strip-components=1 \
-        -C /opt/llvm-22 && \
-    rm -f /tmp/llvm.tar.xz && \
-    for tool in clang clang++ llvm-config lld ld.lld; do \
-        if [ -x "/opt/llvm-22/bin/${tool}" ]; then \
-            ln -s "/opt/llvm-22/bin/${tool}" "/usr/local/bin/${tool}-22"; \
-        fi; \
-    done
-
-RUN clang-22 --version && \
-    clang++-22 --version && \
-    llvm-config-22 --version
+RUN clang-18 --version && \
+    clang++-18 --version && \
+    llvm-config-18 --version
 
 #
 # ----------------------------------------------------------------------
@@ -89,9 +79,9 @@ RUN cd /opt/aflpp && \
     make clean || true
 
 RUN cd /opt/aflpp && \
-    LLVM_CONFIG=llvm-config-22 \
-    CC=clang-22 \
-    CXX=clang++-22 \
+    LLVM_CONFIG=llvm-config-18 \
+    CC=clang-18 \
+    CXX=clang++-18 \
     make source-only -j$(nproc)
 
 RUN cd /opt/aflpp && \
@@ -113,13 +103,13 @@ RUN rm -rf /opt/symsan-src && \
 
 RUN mkdir -p /opt/symsan-src/build && \
     cd /opt/symsan-src/build && \
-    CC=clang-22 \
-    CXX=clang++-22 \
+    CC=clang-18 \
+    CXX=clang++-18 \
     cmake \
         -DAFLPP_PATH=/opt/aflpp \
-        -DCMAKE_C_COMPILER=clang-22 \
-        -DCMAKE_CXX_COMPILER=clang++-22 \
-        -DLLVM_DIR=/opt/llvm-22/lib/cmake/llvm \
+        -DCMAKE_C_COMPILER=clang-18 \
+        -DCMAKE_CXX_COMPILER=clang++-18 \
+        -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm \
         -DCMAKE_INSTALL_PREFIX=/opt/symsan \
         -DCMAKE_BUILD_TYPE=Release \
         .. && \
@@ -132,10 +122,10 @@ RUN test -d /opt/symsan && \
 ENV SYMSAN_HOME=/opt/symsan
 ENV AFLPP_HOME=/opt/aflpp
 
-ENV PATH="/opt/symsan/bin:/opt/aflpp:/usr/lib/llvm-22/bin:$PATH"
+ENV PATH="/opt/symsan/bin:/opt/aflpp:/usr/lib/llvm-18/bin:$PATH"
 
-ENV KO_CC=clang-22
-ENV KO_CXX=clang++-22
+ENV KO_CC=clang-18
+ENV KO_CXX=clang++-18
 ENV KO_USE_FASTGEN=1
 ENV AFL_LLVM_CMPLOG=0
 
@@ -155,12 +145,12 @@ docker tag \
 
 docker tag \
     "${SYMSAN_IMAGE}" \
-    "${project_image}:symsan-llvm22"
+    "${project_image}:symsan-llvm18"
 
 echo
 
 echo "========================================"
-echo "SymSan LLVM 22 image"
+echo "SymSan LLVM 18 image"
 echo "========================================"
 
 docker image inspect \
@@ -172,10 +162,10 @@ docker run --rm \
     "${project_image}:latest" \
     bash -c '
         echo "LLVM:"
-        clang-22 --version
+        clang-18 --version
         echo
         echo "LLVM config:"
-        llvm-config-22 --version
+        llvm-config-18 --version
         echo
         echo "AFL++:"
         command -v afl-fuzz || true
