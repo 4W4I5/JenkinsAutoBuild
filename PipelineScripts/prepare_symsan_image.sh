@@ -76,11 +76,11 @@ RUN clang-18 --version && \
 # ----------------------------------------------------------------------
 #
 RUN rm -rf /opt/z3-src && \
-    git clone --depth=1 \
+    git clone --depth 50 --single-branch \
         https://github.com/Z3Prover/z3.git \
-        /opt/z3-src
-
-RUN cd /opt/z3-src && \
+        /opt/z3-src && \
+    cd /opt/z3-src && \
+    git fetch origin tag z3-4.8.17 --no-tags && \
     git checkout z3-4.8.17 && \
     python3 scripts/mk_make.py --prefix=/usr/local && \
     cd build && \
@@ -89,6 +89,7 @@ RUN cd /opt/z3-src && \
 
 RUN ldconfig && \
     pkg-config --modversion z3 || true
+
 
 #
 # ----------------------------------------------------------------------
