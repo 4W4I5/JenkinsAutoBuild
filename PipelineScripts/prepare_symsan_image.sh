@@ -50,6 +50,7 @@ RUN apt-get update && \
         libunwind-18-dev \
         gcc-13-plugin-dev \
         libz3-dev \
+        nlohmann-json3-dev \
         libgoogle-perftools-dev \
         gdb \
         ca-certificates \
@@ -68,6 +69,26 @@ RUN apt-get update && \
 RUN clang-18 --version && \
     clang++-18 --version && \
     llvm-config-18 --version
+
+#
+# ----------------------------------------------------------------------
+# Z3 ≥ 4.8.15 (Ubuntu 24.04 ships 4.8.12; Symsan needs string theory APIs)
+# ----------------------------------------------------------------------
+#
+RUN rm -rf /opt/z3-src && \
+    git clone --depth=1 \
+        https://github.com/Z3Prover/z3.git \
+        /opt/z3-src
+
+RUN cd /opt/z3-src && \
+    git checkout z3-4.8.17 && \
+    python3 scripts/mk_make.py --prefix=/usr/local && \
+    cd build && \
+    make -j$(nproc) && \
+    make install
+
+RUN ldconfig && \
+    pkg-config --modversion z3 || true
 
 #
 # ----------------------------------------------------------------------
