@@ -50,23 +50,25 @@ RUN apt-get update && \
 # LLVM 22
 # ----------------------------------------------------------------------
 #
-RUN wget -q https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh && \
-    chmod +x /tmp/llvm.sh && \
-    /tmp/llvm.sh 22 all && \
-    rm -f /tmp/llvm.sh
+ARG LLVM_RELEASE=22.1.0
+
+RUN mkdir -p /opt/llvm-22 && \
+    curl -fsSL \
+        "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_RELEASE}/LLVM-${LLVM_RELEASE}-Linux-X64.tar.xz" \
+        -o /tmp/llvm.tar.xz && \
+    tar -xJf /tmp/llvm.tar.xz \
+        --strip-components=1 \
+        -C /opt/llvm-22 && \
+    rm -f /tmp/llvm.tar.xz && \
+    for tool in clang clang++ llvm-config lld ld.lld; do \
+        if [ -x "/opt/llvm-22/bin/${tool}" ]; then \
+            ln -s "/opt/llvm-22/bin/${tool}" "/usr/local/bin/${tool}-22"; \
+        fi; \
+    done
 
 RUN clang-22 --version && \
     clang++-22 --version && \
     llvm-config-22 --version
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        libc++-22-dev \
-        libc++abi-22-dev \
-        libunwind-22-dev \
-        lld-22 \
-        && \
-    rm -rf /var/lib/apt/lists/*
 
 #
 # ----------------------------------------------------------------------
@@ -112,7 +114,7 @@ RUN mkdir -p /opt/symsan-src/build && \
         -DAFLPP_PATH=/opt/aflpp \
         -DCMAKE_C_COMPILER=clang-22 \
         -DCMAKE_CXX_COMPILER=clang++-22 \
-        -DLLVM_DIR=$(llvm-config-22 --cmakedir) \
+        -DLLVM_DIR=/opt/llvm-22/lib/cmake/llvm \
         -DCMAKE_INSTALL_PREFIX=/opt/symsan \
         -DCMAKE_BUILD_TYPE=Release \
         .. && \
