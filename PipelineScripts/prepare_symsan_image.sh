@@ -10,7 +10,7 @@ cat > symsan-docker/Dockerfile <<'EOF'
 ARG PROJECT_IMAGE=gcr.io/oss-fuzz/libjpeg-turbo
 FROM ${PROJECT_IMAGE} AS oss_fuzz_project
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 COPY --from=oss_fuzz_project /src /src
 COPY --from=oss_fuzz_project /out /out
