@@ -38,6 +38,7 @@ RUN apt-get update && \
         gnupg \
         python3 \
         python3-dev \
+        python-is-python3 \
         python3-pip \
         zlib1g-dev \
         llvm-18 \
