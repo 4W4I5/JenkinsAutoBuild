@@ -7,7 +7,8 @@ rm -rf symsan-docker
 mkdir -p symsan-docker
 
 cat > symsan-docker/Dockerfile <<'EOF'
-FROM gcr.io/oss-fuzz/${TARGET_PROJECT}
+ARG PROJECT_IMAGE
+FROM ${PROJECT_IMAGE}
 
 USER root
 
@@ -136,6 +137,7 @@ EOF
 
 docker build \
     --pull \
+    --build-arg "PROJECT_IMAGE=${project_image}" \
     -f symsan-docker/Dockerfile \
     -t "${SYMSAN_IMAGE}" \
     .
