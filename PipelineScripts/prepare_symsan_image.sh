@@ -18,6 +18,7 @@ COPY --from=oss_fuzz_project /out /out
 USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/lib/llvm-18/bin:$PATH"
 
 #
 # ----------------------------------------------------------------------
@@ -40,11 +41,14 @@ RUN apt-get update && \
         python3-pip \
         zlib1g-dev \
         llvm-18 \
+        llvm-18-dev \
         clang-18 \
+        lld-18 \
         libclang-18-dev \
         libc++-18-dev \
         libc++abi-18-dev \
         libunwind-18-dev \
+        gcc-13-plugin-dev \
         libz3-dev \
         libgoogle-perftools-dev \
         gdb \
