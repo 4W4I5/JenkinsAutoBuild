@@ -58,6 +58,7 @@ RUN apt-get update && \
         unzip \
         rsync \
         sshpass \
+        libboost-all-dev \
         && \
     rm -rf /var/lib/apt/lists/*
 
