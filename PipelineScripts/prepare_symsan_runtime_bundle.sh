@@ -102,9 +102,10 @@ echo
 echo "Selected SymSan target:"
 echo "${SYMSAN_TARGET}"
 
+_SYMDIR=$(cd "${symsan_out}" && pwd)
 cat > "${symsan_out}/symsan.env" <<EOF
-AFL_CUSTOM_MUTATOR_LIBRARY=\$PWD/libSymSanMutator.so
-SYMSAN_TARGET=\$PWD/${SYMSAN_TARGET_NAME}
+AFL_CUSTOM_MUTATOR_LIBRARY=${_SYMDIR}/libSymSanMutator.so
+SYMSAN_TARGET=${_SYMDIR}/${SYMSAN_TARGET_NAME}
 AFL_DISABLE_TRIM=1
 EOF
 

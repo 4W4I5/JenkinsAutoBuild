@@ -7,7 +7,7 @@ rm -rf symsan-docker
 mkdir -p symsan-docker
 
 cat > symsan-docker/Dockerfile <<'EOF'
-ARG PROJECT_IMAGE=gcr.io/oss-fuzz/libjpeg-turbo
+ARG PROJECT_IMAGE
 FROM ${PROJECT_IMAGE} AS oss_fuzz_project
 
 FROM ubuntu:24.04
