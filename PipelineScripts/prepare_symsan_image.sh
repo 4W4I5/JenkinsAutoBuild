@@ -161,7 +161,6 @@ USER root
 EOF
 
 docker build \
-    --pull \
     --build-arg "PROJECT_IMAGE=${project_image}" \
     -f symsan-docker/Dockerfile \
     -t "${SYMSAN_IMAGE}" \
