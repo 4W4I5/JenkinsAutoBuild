@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -eux
 
-project_image="gcr.io/oss-fuzz/${TARGET_PROJECT}"
+# Use locally-built project image (no gcr.io pull, no arch tags)
+project_image="${TARGET_PROJECT}:latest"
 
 rm -rf symsan-docker
 mkdir -p symsan-docker
