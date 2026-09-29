@@ -57,6 +57,7 @@ PYTHON_EOF
 docker run --rm \
     -v "${OSS_FUZZ_DIR}:/src" \
     -v "${PY_SCRIPT}:/build.py" \
+    -v "/var/run/docker.sock:/var/run/docker.sock" \
     -e TARGET_PROJECT="${TARGET_PROJECT}" \
     -e TARGET_ARCH="${TARGET_ARCH}" \
     "${SYMSAN_IMAGE}" \
