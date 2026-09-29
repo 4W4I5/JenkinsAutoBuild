@@ -55,52 +55,61 @@ docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFI
     exit 1
 }
 
-# Run compilation inside the compiled image where ko-clang exists.
+# Run compilation inside the compile image where ko-clang exists.
 docker run --rm \
-    -v "${OSS_FUZZ_DIR}/infra:/oss-fuzz-infra" \
-    -v "${PROJECT_DIR}:/src" \
-    -v "${OUTPUT_DIR}:/out" \
-    -e FUZZING_ENGINE=afl \
-    -e SANITIZER=none \
-    -e ARCHITECTURE="${TARGET_ARCH}" \
-    -e PROJECT_NAME="${TARGET_PROJECT}" \
-    -e HELPER=True \
-    -e CC=/opt/symsan/bin/ko-clang \
-    -e CXX=/opt/symsan/bin/ko-clang++ \
-    -e KO_CC=clang-18 \
-    -e KO_CXX=clang++-18 \
-    -e KO_USE_FASTGEN=1 \
-    -e AFL_LLVM_CMPLOG=0 \
+    -v "${OSS_FUZZ_DIR}:/oss-fuzz" \
+    -e TARGET_PROJECT="${TARGET_PROJECT}" \
+    -e TARGET_ARCH="${TARGET_ARCH}" \
     "${COMPILE_IMAGE}" \
-    bash -c '
-        cd /src && ls -la build.sh *.fuzz.cpp 2>/dev/null || true
+    python3 - <<'PYEOF'
+import os, sys
 
-        # Try oss-fuzz helper.py first (takes project as positional arg)
-        python3 /oss-fuzz-infra/helper.py build_fuzzers \
-            --engine=afl \
-            --sanitizer=none \
-            --architecture="$ARCHITECTURE" \
-            --clean \
-            "$PROJECT_NAME" 2>&1 || {
-            echo "helper.py failed, trying direct compile with ko-clang"
-            ls -la /src/*.fuzz.cpp /src/build.sh 2>/dev/null || true
+sys.path.insert(0, "/oss-fuzz/infra")
 
-            # Manual compile attempt for fuzz targets
-            for f in /src/*.fuzz.cpp; do
-                [ -f "$f" ] && echo "Compiling $f -> /out/$(basename "${f%.cpp}")_symsan" \
-                    && /opt/symsan/bin/ko-clang "$f" -o "/out/$(basename "${f%.cpp}")_symsan" 2>&1 || true
-            done
+import common_utils
+import helper
 
-            # Try build.sh as fallback (export vars so helper.py env logic picks them up)
-            if [ -f /src/build.sh ]; then
-                echo "Trying build.sh with ko-clang in PATH..."
-                export CC=/opt/symsan/bin/ko-clang CXX=/opt/symsan/bin/ko-clang++ KO_USE_FASTGEN=1 AFL_LLVM_CMPLOG=0
-                bash /src/build.sh 2>&1 || true
-            fi
-        }
-    '
+project_name = os.environ["TARGET_PROJECT"]
+architecture = os.environ["TARGET_ARCH"]
+project = common_utils.Project(project_name)
 
-rm -rf "${DOCKERFILE_DIR}"
+env = [
+    "FUZZING_ENGINE=afl",
+    "SANITIZER=none",
+    "ARCHITECTURE=" + architecture,
+    "PROJECT_NAME=" + project_name,
+    "HELPER=True",
+    "CC=/opt/symsan/bin/ko-clang",
+    "CXX=/opt/symsan/bin/ko-clang++",
+    "KO_CC=clang-18",
+    "KO_CXX=clang++-18",
+    "KO_USE_FASTGEN=1",
+    "AFL_LLVM_CMPLOG=0",
+]
+
+print("========================================")
+print("Building SymSan symbolic binary (via helper.py)")
+print("Project:", project_name)
+print("Architecture:", architecture)
+print("========================================")
+
+result = helper.build_fuzzers_impl(
+    project=project,
+    clean=True,
+    engine="afl",
+    sanitizer="none",
+    architecture=architecture,
+    env_to_add=env,
+    source_path=None,
+    child_dir="symsan",
+    build_project_image=False,
+)
+
+if not result:
+    raise SystemExit("SymSan symbolic build failed")
+
+print("SymSan symbolic build completed successfully.")
+PYEOF
 
 # Check if any binaries were produced
 SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -maxdepth 1 -type f -perm -111 ! -name '*.so' ! -name '*.a' 2>/dev/null | sort)
