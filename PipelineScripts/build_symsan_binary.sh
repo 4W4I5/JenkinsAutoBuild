@@ -75,13 +75,13 @@ docker run --rm \
     bash -c '
         cd /src && ls -la build.sh *.fuzz.cpp 2>/dev/null || true
 
-        # Try oss-fuzz helper.py first (it handles project-specific compile logic)
+        # Try oss-fuzz helper.py first (takes project as positional arg)
         python3 /oss-fuzz-infra/helper.py build_fuzzers \
             --engine=afl \
             --sanitizer=none \
-            --architecture="${TARGET_ARCH}" \
+            --architecture="$ARCHITECTURE" \
             --clean \
-            "${TARGET_PROJECT}" 2>&1 || {
+            "$PROJECT_NAME" 2>&1 || {
             echo "helper.py failed, trying direct compile with ko-clang"
             ls -la /src/*.fuzz.cpp /src/build.sh 2>/dev/null || true
 
@@ -91,10 +91,11 @@ docker run --rm \
                     && /opt/symsan/bin/ko-clang "$f" -o "/out/$(basename "${f%.cpp}")_symsan" 2>&1 || true
             done
 
-            # Try build.sh as fallback
+            # Try build.sh as fallback (export vars so helper.py env logic picks them up)
             if [ -f /src/build.sh ]; then
                 echo "Trying build.sh with ko-clang in PATH..."
-                CC=/opt/symsan/bin/ko-clang CXX=/opt/symsan/bin/ko-clang++ KO_USE_FASTGEN=1 bash /src/build.sh 2>&1 || true
+                export CC=/opt/symsan/bin/ko-clang CXX=/opt/symsan/bin/ko-clang++ KO_USE_FASTGEN=1 AFL_LLVM_CMPLOG=0
+                bash /src/build.sh 2>&1 || true
             fi
         }
     '
