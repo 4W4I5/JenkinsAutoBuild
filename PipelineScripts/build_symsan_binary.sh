@@ -19,13 +19,19 @@ echo "========================================"
 # Build a compiler image that wraps the OSS-Fuzz project image with ko-clang added
 COMPILE_IMAGE="${SYMSAN_IMAGE}-${TARGET_PROJECT}-compile"
 
-cat > /tmp/symsan_compile_dockerfile <<EOF
+DOCKERFILE_DIR="${OSS_FUZZ_DIR}/build/tmp_symsan_dockerfile_${TARGET_PROJECT}"
+mkdir -p "${DOCKERFILE_DIR}"
+
+cat > "${DOCKERFILE_DIR}/Dockerfile" <<EOF
 FROM gcr.io/oss-fuzz/${TARGET_PROJECT}:${TARGET_ARCH}
 COPY --from=${SYMSAN_IMAGE} /opt/symsan/bin /opt/symsan/bin
 ENV PATH="/opt/symsan/bin:/usr/lib/llvm-18/bin:${PATH}"
 EOF
 
-docker build -t "${COMPILE_IMAGE}" -f /tmp/symsan_compile_dockerfile . 2>/dev/null || true
+docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFILE_DIR}" || {
+    echo "ERROR: Failed to build compiler image for ${TARGET_PROJECT}"
+    exit 1
+}
 
 # Run compilation inside the compiled image where ko-clang exists
 docker run --rm \
@@ -57,4 +63,4 @@ fi
 echo "SymSan symbolic build completed successfully:"
 echo "${SYMSAN_BINARIES}"
 
-rm -f /tmp/symsan_compile_dockerfile
+rm -rf "${DOCKERFILE_DIR}"
