@@ -17,8 +17,8 @@ echo "Project: ${TARGET_PROJECT}"
 echo "Architecture: ${TARGET_ARCH}"
 echo "========================================"
 
-# Use the locally-built project image (helper.py tags it as PROJECT:latest, NOT with arch tag)
-PROJECT_IMAGE="${TARGET_PROJECT}:latest"
+# Use locally-built project image (full gcr.io name, no arch tag suffix)
+PROJECT_IMAGE="gcr.io/oss-fuzz/${TARGET_PROJECT}:latest"
 
 COMPILE_IMAGE="${SYMSAN_IMAGE}-${TARGET_PROJECT}-compile"
 
