@@ -60,6 +60,7 @@ RUN apt-get update && \
         rsync \
         sshpass \
         libboost-all-dev \
+        docker.io \
         && \
     rm -rf /var/lib/apt/lists/*
 
