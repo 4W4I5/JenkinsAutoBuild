@@ -168,14 +168,6 @@ docker build \
     -t "${SYMSAN_IMAGE}" \
     .
 
-docker tag \
-    "${SYMSAN_IMAGE}" \
-    "${project_image}:latest"
-
-docker tag \
-    "${SYMSAN_IMAGE}" \
-    "${project_image}:symsan-llvm18"
-
 echo
 
 echo "========================================"
@@ -183,12 +175,12 @@ echo "SymSan LLVM 18 image"
 echo "========================================"
 
 docker image inspect \
-    "${project_image}:latest" \
+    "${SYMSAN_IMAGE}" \
     --format '{{.Id}}'
 
 echo
 docker run --rm \
-    "${project_image}:latest" \
+    "${SYMSAN_IMAGE}" \
     bash -c '
         echo "LLVM:"
         clang-18 --version
