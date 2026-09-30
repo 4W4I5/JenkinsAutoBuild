@@ -143,6 +143,13 @@ pipeline {
                 sh "bash '${WORKSPACE}/PipelineScripts/upload_build.sh'"
             }
         }
+        stage('Debug Workspace') {
+    steps {
+        input message: 'Build complete. Inspect the Jenkins workspace now, then click Proceed.', 
+              ok: 'Continue and clean workspace'
+    }
+}
+
     }
 
     post {
