@@ -153,13 +153,21 @@ pipeline {
     }
 
     post {
-        always {
-            archiveArtifacts(
-                artifacts: 'oss-fuzz/build/out/**/*',
-                allowEmptyArchive: true
-            )
-
-            cleanWs()
+    failure {
+        script {
+            input message: 'Build failed. SSH into the Jenkins agent and inspect the workspace. Click Proceed when done.',
+                  ok: 'Continue cleanup'
         }
     }
+
+    always {
+        archiveArtifacts(
+            artifacts: 'oss-fuzz/build/out/**/*',
+            allowEmptyArchive: true
+        )
+
+        cleanWs()
+    }
+}
+
 }
