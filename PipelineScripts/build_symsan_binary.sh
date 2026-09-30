@@ -17,9 +17,7 @@ echo "Project: ${TARGET_PROJECT}"
 echo "Architecture: ${TARGET_ARCH}"
 echo "========================================"
 
-# Use locally-built project image (full gcr.io name, no arch tag suffix)
 PROJECT_IMAGE="gcr.io/oss-fuzz/${TARGET_PROJECT}:latest"
-
 COMPILE_IMAGE="${SYMSAN_IMAGE}-${TARGET_PROJECT}-compile"
 
 DOCKERFILE_DIR="${OSS_FUZZ_DIR}/build/tmp_symsan_dockerfile_${TARGET_PROJECT}"
@@ -38,7 +36,7 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/usr/lib/llvm-18/bin:/opt/symsan/bin:\${PATH}"
 
-# Minimal deps for helper.py and compilation
+# Install compilation dependencies and docker CLI for helper.py sub-calls
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 python3-dev python-is-python3 gcc g++ make cmake \
@@ -46,7 +44,6 @@ RUN apt-get update && \
         docker.io \
         && rm -rf /var/lib/apt/lists/*
 
-# Bring ko-clang and ko-clang++ from the Symsan image
 COPY --from=${SYMSAN_IMAGE} /opt/symsan/bin /opt/symsan/bin
 ENV PATH="/opt/symsan/bin:/usr/lib/llvm-18/bin:\${PATH}"
 EOF
@@ -56,8 +53,6 @@ docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFI
     exit 1
 }
 
-# Run compilation inside the compile image where ko-clang exists.
-# Write python script to temp file (heredoc doesn't work inside docker run multi-line).
 PY_SCRIPT="${OSS_FUZZ_DIR}/build/tmp_symsan_build_${TARGET_PROJECT}.py"
 
 cat > "${PY_SCRIPT}" <<'PYEOF'
@@ -110,18 +105,20 @@ if not result:
 print("SymSan symbolic build completed successfully.")
 PYEOF
 
+# Execute build mapping host OSS_FUZZ_DIR to /oss-fuzz inside container
 docker run --rm \
+    -v /var/run/docker.sock:/var/run/docker.sock \
     -v "${OSS_FUZZ_DIR}:/oss-fuzz" \
+    -v "${OSS_FUZZ_DIR}:${OSS_FUZZ_DIR}" \
     -v "${PY_SCRIPT}:/symsan_build.py" \
     -e TARGET_PROJECT="${TARGET_PROJECT}" \
     -e TARGET_ARCH="${TARGET_ARCH}" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
     "${COMPILE_IMAGE}" \
     python3 /symsan_build.py
 
 rm -f "${PY_SCRIPT}"
 
-# Check if any binaries were produced
+# Verify produced binaries
 SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -maxdepth 1 -type f -perm -111 ! -name '*.so' ! -name '*.a' 2>/dev/null | sort)
 
 if [ -z "${SYMSAN_BINARIES}" ]; then
