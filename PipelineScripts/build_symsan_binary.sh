@@ -56,12 +56,10 @@ docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFI
 }
 
 # Run compilation inside the compile image where ko-clang exists.
-docker run --rm \
-    -v "${OSS_FUZZ_DIR}:/oss-fuzz" \
-    -e TARGET_PROJECT="${TARGET_PROJECT}" \
-    -e TARGET_ARCH="${TARGET_ARCH}" \
-    "${COMPILE_IMAGE}" \
-    python3 - <<'PYEOF'
+# Write python script to temp file (heredoc doesn't work inside docker run multi-line).
+PY_SCRIPT="${OSS_FUZZ_DIR}/build/tmp_symsan_build_${TARGET_PROJECT}.py"
+
+cat > "${PY_SCRIPT}" <<'PYEOF'
 import os, sys
 
 sys.path.insert(0, "/oss-fuzz/infra")
@@ -110,6 +108,16 @@ if not result:
 
 print("SymSan symbolic build completed successfully.")
 PYEOF
+
+docker run --rm \
+    -v "${OSS_FUZZ_DIR}:/oss-fuzz" \
+    -v "${PY_SCRIPT}:/symsan_build.py" \
+    -e TARGET_PROJECT="${TARGET_PROJECT}" \
+    -e TARGET_ARCH="${TARGET_ARCH}" \
+    "${COMPILE_IMAGE}" \
+    python3 /symsan_build.py
+
+rm -f "${PY_SCRIPT}"
 
 # Check if any binaries were produced
 SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -maxdepth 1 -type f -perm -111 ! -name '*.so' ! -name '*.a' 2>/dev/null | sort)
