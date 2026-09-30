@@ -44,18 +44,23 @@ RUN apt-get update && \
         && rm -rf /var/lib/apt/lists/*
 
 COPY --from=${SYMSAN_IMAGE} /opt/symsan/bin /opt/symsan/bin
+
 ENV PATH="/opt/symsan/bin:/usr/lib/llvm-18/bin:\${PATH}"
 EOF
 
-docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFILE_DIR}" || {
-    echo "ERROR: Failed to build compiler image for ${TARGET_PROJECT}"
-    exit 1
-}
+docker build \
+    -t "${COMPILE_IMAGE}" \
+    -f "${DOCKERFILE_DIR}/Dockerfile" \
+    "${DOCKERFILE_DIR}" || {
+        echo "ERROR: Failed to build compiler image for ${TARGET_PROJECT}"
+        exit 1
+    }
 
 PY_SCRIPT="${OSS_FUZZ_DIR}/build/tmp_symsan_build_${TARGET_PROJECT}.py"
 
 cat > "${PY_SCRIPT}" <<'PYEOF'
-import os, sys
+import os
+import sys
 
 sys.path.insert(0, "/oss-fuzz/infra")
 
@@ -64,7 +69,32 @@ import helper
 
 project_name = os.environ["TARGET_PROJECT"]
 architecture = os.environ["TARGET_ARCH"]
+
 project = common_utils.Project(project_name)
+
+print("========================================")
+print("DEBUG: OSS-FUZZ PROJECT PATHS")
+print("========================================")
+print("CWD:", os.getcwd())
+print("Project path:", project.path)
+print("Project out:", project.out)
+print("Project work:", project.work)
+print("Project out exists:", os.path.exists(project.out))
+print("Project work exists:", os.path.exists(project.work))
+
+print("\n=== project.out ===")
+os.system("find '" + project.out + "' -maxdepth 4 -ls 2>/dev/null || true")
+
+print("\n=== /oss-fuzz/build/out ===")
+os.system("find /oss-fuzz/build/out -maxdepth 5 -ls 2>/dev/null || true")
+
+print("\n=== /out ===")
+os.system("find /out -maxdepth 5 -ls 2>/dev/null || true")
+
+print("\n=== /work ===")
+os.system("find /work -maxdepth 5 -ls 2>/dev/null || true")
+
+print("========================================")
 
 env = [
     "FUZZING_ENGINE=afl",
@@ -101,8 +131,41 @@ result = helper.build_fuzzers_impl(
 if not result:
     raise SystemExit("SymSan symbolic build failed")
 
+print("========================================")
 print("SymSan symbolic build completed successfully.")
+print("========================================")
+
+print("\n=== OUTPUT AFTER HELPER ===")
+print("project.out:", project.out)
+print("project.work:", project.work)
+
+os.system(
+    "find '" + project.out + "' "
+    "-maxdepth 5 "
+    "-type f "
+    "-ls 2>/dev/null || true"
+)
+
+print("\n=== EXECUTABLES AFTER HELPER ===")
+os.system(
+    "find '" + project.out + "' "
+    "-type f "
+    "-perm -111 "
+    "-ls 2>/dev/null || true"
+)
+
+print("\n=== ELF-LIKE FILES AFTER HELPER ===")
+os.system(
+    "find '" + project.out + "' "
+    "-type f "
+    "-exec file {} \\; "
+    "2>/dev/null | grep -E 'ELF|executable' || true"
+)
 PYEOF
+
+echo "========================================"
+echo "Running SymSan helper"
+echo "========================================"
 
 docker run --rm \
     -v /var/run/docker.sock:/var/run/docker.sock \
@@ -114,27 +177,174 @@ docker run --rm \
     "${COMPILE_IMAGE}" \
     python3 /symsan_build.py
 
+# ============================================================
+# DEBUG PAUSE
+# ============================================================
+
+echo ""
+echo "============================================================"
+echo "DEBUG: SymSan helper.py has returned successfully"
+echo "============================================================"
+
+echo ""
+echo "HOST WORKSPACE:"
+echo "  ${WORKSPACE:-$PWD}"
+
+echo ""
+echo "OSS-FUZZ DIR:"
+echo "  ${OSS_FUZZ_DIR}"
+
+echo ""
+echo "BASE OUTPUT:"
+echo "  ${BASE_OUT_DIR}"
+
+echo ""
+echo "SYMSAN OUTPUT:"
+echo "  ${OUTPUT_DIR}"
+
+echo ""
+echo "============================================================"
+echo "DEBUG: BASE OUTPUT CONTENTS"
+echo "============================================================"
+
+find "${BASE_OUT_DIR}" \
+    -maxdepth 5 \
+    -ls \
+    2>/dev/null || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG: SYMSAN OUTPUT CONTENTS"
+echo "============================================================"
+
+find "${OUTPUT_DIR}" \
+    -maxdepth 5 \
+    -ls \
+    2>/dev/null || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG: ALL EXECUTABLES IN PROJECT OUTPUT"
+echo "============================================================"
+
+find "${BASE_OUT_DIR}" \
+    -type f \
+    -perm -111 \
+    -ls \
+    2>/dev/null || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG: ALL FILES IN PROJECT OUTPUT"
+echo "============================================================"
+
+find "${BASE_OUT_DIR}" \
+    -type f \
+    -exec file {} \; \
+    2>/dev/null || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG: RECENT FILES IN OSS-FUZZ"
+echo "============================================================"
+
+find "${OSS_FUZZ_DIR}" \
+    -type f \
+    -mmin -30 \
+    -printf '%TY-%Tm-%Td %TH:%TM:%TS %u:%g %p\n' \
+    2>/dev/null \
+    | sort \
+    | tail -200 || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG: GENERATED PYTHON SCRIPT"
+echo "============================================================"
+
+cat "${PY_SCRIPT}" || true
+
+echo ""
+echo "============================================================"
+echo "DEBUG PAUSE"
+echo "============================================================"
+echo "The SymSan helper has completed."
+echo ""
+echo "You can now SSH into the Jenkins machine and inspect:"
+echo ""
+echo "  ${OSS_FUZZ_DIR}"
+echo "  ${BASE_OUT_DIR}"
+echo "  ${OUTPUT_DIR}"
+echo ""
+echo "The temporary Python script has NOT been deleted."
+echo ""
+echo "Press ENTER here to continue."
+echo "============================================================"
+
+read -r
+
+echo ""
+echo "Continuing SymSan post-processing..."
+
+# Keep the generated Python script until after debugging.
 rm -f "${PY_SCRIPT}"
 
-# Fix 1: If binaries were dumped in base output dir instead of symsan subfolder, move them over
+# ============================================================
+# POST-PROCESSING
+# ============================================================
+
+# Fix 1:
+# If binaries were dumped in base output dir instead of symsan
+# subfolder, move them over.
 if [ -d "${BASE_OUT_DIR}" ]; then
-    find "${BASE_OUT_DIR}" -maxdepth 1 -type f ! -name '*.so' ! -name '*.a' -exec cp -f {} "${OUTPUT_DIR}/" \; 2>/dev/null || true
+    find "${BASE_OUT_DIR}" \
+        -maxdepth 1 \
+        -type f \
+        ! -name '*.so' \
+        ! -name '*.a' \
+        -exec cp -f {} "${OUTPUT_DIR}/" \; \
+        2>/dev/null || true
 fi
 
-# Fix 2: Explicitly grant execution permissions to all files in output dir
+# Fix 2:
+# Explicitly grant execution permissions.
 chmod -R +x "${OUTPUT_DIR}" || true
 
-# Fix 3: Robust search across output dir looking for ELF binaries
-SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -type f ! -name '*.so' ! -name '*.a' ! -name '*.env' ! -name 'BUILD_INFO' 2>/dev/null | sort)
+# Fix 3:
+# Find SymSan output files.
+SYMSAN_BINARIES=$(
+    find "${OUTPUT_DIR}" \
+        -type f \
+        ! -name '*.so' \
+        ! -name '*.a' \
+        ! -name '*.env' \
+        ! -name 'BUILD_INFO' \
+        2>/dev/null \
+        | sort
+)
 
 if [ -z "${SYMSAN_BINARIES}" ]; then
+    echo ""
+    echo "============================================================"
     echo "ERROR: No SymSan executable was produced."
-    echo "Contents of base output directory (${BASE_OUT_DIR}):"
+    echo "============================================================"
+
+    echo ""
+    echo "Contents of base output directory:"
     ls -la "${BASE_OUT_DIR}/" || true
-    echo "Contents of SymSan output directory (${OUTPUT_DIR}):"
+
+    echo ""
+    echo "Contents of SymSan output directory:"
     ls -la "${OUTPUT_DIR}/" || true
+
+    echo ""
+    echo "Full output tree:"
+    find "${BASE_OUT_DIR}" -maxdepth 5 -ls || true
+
     exit 1
 fi
 
-echo "SymSan symbolic build completed successfully:"
+echo ""
+echo "============================================================"
+echo "SymSan symbolic build completed successfully"
+echo "============================================================"
 echo "${SYMSAN_BINARIES}"
