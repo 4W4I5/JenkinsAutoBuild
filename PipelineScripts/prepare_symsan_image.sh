@@ -7,9 +7,11 @@ project_image="gcr.io/oss-fuzz/${TARGET_PROJECT}:latest"
 rm -rf symsan-docker
 mkdir -p symsan-docker
 
-cat > symsan-docker/Dockerfile <<'EOF'
-ARG PROJECT_IMAGE
-FROM ${PROJECT_IMAGE} AS oss_fuzz_project
+# Double-quoted heredoc so ${TARGET_PROJECT} expands for the ARG default.
+# Dollar signs that belong to Docker (not bash) are escaped with backslash.
+cat > symsan-docker/Dockerfile <<EOF
+ARG PROJECT_IMAGE=gcr.io/oss-fuzz/${TARGET_PROJECT}:latest
+FROM \${PROJECT_IMAGE} AS oss_fuzz_project
 
 FROM ubuntu:24.04
 
@@ -19,7 +21,7 @@ COPY --from=oss_fuzz_project /out /out
 USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/lib/llvm-18/bin:$PATH"
+ENV PATH="/usr/lib/llvm-18/bin:\$PATH"
 
 #
 # ----------------------------------------------------------------------
@@ -88,7 +90,7 @@ RUN rm -rf /opt/z3-src && \
     git checkout z3-4.8.17 && \
     python3 scripts/mk_make.py --prefix=/usr/local && \
     cd build && \
-    make -j$(nproc) && \
+    make -j\$(nproc) && \
     make install
 
 RUN ldconfig && \
@@ -112,7 +114,7 @@ RUN cd /opt/aflpp && \
     LLVM_CONFIG=llvm-config-18 \
     CC=clang-18 \
     CXX=clang++-18 \
-    make source-only -j$(nproc)
+    make source-only -j\$(nproc)
 
 RUN cd /opt/aflpp && \
     make install
@@ -143,7 +145,7 @@ RUN mkdir -p /opt/symsan-src/build && \
         -DCMAKE_INSTALL_PREFIX=/opt/symsan \
         -DCMAKE_BUILD_TYPE=Release \
         .. && \
-    cmake --build . --parallel $(nproc) && \
+    cmake --build . --parallel \$(nproc) && \
     cmake --install .
 
 RUN test -d /opt/symsan && \
@@ -152,7 +154,7 @@ RUN test -d /opt/symsan && \
 ENV SYMSAN_HOME=/opt/symsan
 ENV AFLPP_HOME=/opt/aflpp
 
-ENV PATH="/opt/symsan/bin:/opt/aflpp:/usr/lib/llvm-18/bin:$PATH"
+ENV PATH="/opt/symsan/bin:/opt/aflpp:/usr/lib/llvm-18/bin:\$PATH"
 
 ENV KO_CC=clang-18
 ENV KO_CXX=clang++-18

@@ -43,6 +43,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 python3-dev python-is-python3 gcc g++ make cmake \
         libc6-dev libstdc++-13-dev zlib1g-dev ca-certificates \
+        docker.io \
         && rm -rf /var/lib/apt/lists/*
 
 # Bring ko-clang and ko-clang++ from the Symsan image
@@ -114,6 +115,7 @@ docker run --rm \
     -v "${PY_SCRIPT}:/symsan_build.py" \
     -e TARGET_PROJECT="${TARGET_PROJECT}" \
     -e TARGET_ARCH="${TARGET_ARCH}" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
     "${COMPILE_IMAGE}" \
     python3 /symsan_build.py
 
