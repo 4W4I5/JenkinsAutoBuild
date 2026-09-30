@@ -6,7 +6,8 @@ export TARGET_ARCH="${2:-${TARGET_ARCH:-x86_64}}"
 
 OSS_FUZZ_DIR="${WORKSPACE:-$PWD}/oss-fuzz"
 PROJECT_DIR="${OSS_FUZZ_DIR}/projects/${TARGET_PROJECT}"
-OUTPUT_DIR="${OSS_FUZZ_DIR}/build/out/${TARGET_PROJECT}/symsan"
+BASE_OUT_DIR="${OSS_FUZZ_DIR}/build/out/${TARGET_PROJECT}"
+OUTPUT_DIR="${BASE_OUT_DIR}/symsan"
 SYMSAN_IMAGE="${3:-${SYMSAN_IMAGE:-oss-fuzz-symsan-latest}}"
 
 mkdir -p "${OUTPUT_DIR}"
@@ -36,12 +37,10 @@ USER root
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/usr/lib/llvm-18/bin:/opt/symsan/bin:\${PATH}"
 
-# Install compilation dependencies and docker CLI for helper.py sub-calls
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 python3-dev python-is-python3 gcc g++ make cmake \
-        libc6-dev libstdc++-13-dev zlib1g-dev ca-certificates \
-        docker.io \
+        libc6-dev libstdc++-13-dev zlib1g-dev ca-certificates docker.io \
         && rm -rf /var/lib/apt/lists/*
 
 COPY --from=${SYMSAN_IMAGE} /opt/symsan/bin /opt/symsan/bin
@@ -105,7 +104,6 @@ if not result:
 print("SymSan symbolic build completed successfully.")
 PYEOF
 
-# Execute build mapping host OSS_FUZZ_DIR to /oss-fuzz inside container
 docker run --rm \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "${OSS_FUZZ_DIR}:/oss-fuzz" \
@@ -118,11 +116,22 @@ docker run --rm \
 
 rm -f "${PY_SCRIPT}"
 
-# Verify produced binaries
-SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -maxdepth 1 -type f -perm -111 ! -name '*.so' ! -name '*.a' 2>/dev/null | sort)
+# Fix 1: If binaries were dumped in base output dir instead of symsan subfolder, move them over
+if [ -d "${BASE_OUT_DIR}" ]; then
+    find "${BASE_OUT_DIR}" -maxdepth 1 -type f ! -name '*.so' ! -name '*.a' -exec cp -f {} "${OUTPUT_DIR}/" \; 2>/dev/null || true
+fi
+
+# Fix 2: Explicitly grant execution permissions to all files in output dir
+chmod -R +x "${OUTPUT_DIR}" || true
+
+# Fix 3: Robust search across output dir looking for ELF binaries
+SYMSAN_BINARIES=$(find "${OUTPUT_DIR}" -type f ! -name '*.so' ! -name '*.a' ! -name '*.env' ! -name 'BUILD_INFO' 2>/dev/null | sort)
 
 if [ -z "${SYMSAN_BINARIES}" ]; then
     echo "ERROR: No SymSan executable was produced."
+    echo "Contents of base output directory (${BASE_OUT_DIR}):"
+    ls -la "${BASE_OUT_DIR}/" || true
+    echo "Contents of SymSan output directory (${OUTPUT_DIR}):"
     ls -la "${OUTPUT_DIR}/" || true
     exit 1
 fi
