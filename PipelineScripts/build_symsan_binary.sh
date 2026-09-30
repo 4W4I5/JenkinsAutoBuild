@@ -36,7 +36,7 @@ COPY --from=oss_fuzz_project /out /out
 USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/lib/llvm-18/bin:/opt/symsan/bin:${PATH}"
+ENV PATH="/usr/lib/llvm-18/bin:/opt/symsan/bin:\${PATH}"
 
 # Minimal deps for helper.py and compilation
 RUN apt-get update && \
@@ -48,7 +48,7 @@ RUN apt-get update && \
 
 # Bring ko-clang and ko-clang++ from the Symsan image
 COPY --from=${SYMSAN_IMAGE} /opt/symsan/bin /opt/symsan/bin
-ENV PATH="/opt/symsan/bin:/usr/lib/llvm-18/bin:${PATH}"
+ENV PATH="/opt/symsan/bin:/usr/lib/llvm-18/bin:\${PATH}"
 EOF
 
 docker build -t "${COMPILE_IMAGE}" -f "${DOCKERFILE_DIR}/Dockerfile" "${DOCKERFILE_DIR}" || {
